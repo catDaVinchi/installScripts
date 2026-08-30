@@ -1,0 +1,31 @@
+bash# 1. Установка графического сервера, AwesomeWM, терминала и всех утилит
+sudo pacman -S --noconfirm xorg-server xorg-xinit awesome picom feh rofi alacritty lsd bat sddm ttf-nerd-fonts-symbols fastfetch curl
+
+# 2. Включение графического экрана входа (SDDM)
+sudo systemctl enable sddm
+
+# 3. Настройка красивого терминала (добавляем fastfetch и алиасы для lsd/bat)
+echo "fastfetch" >> ~/.bashrc
+echo "alias ls='lsd'" >> ~/.bashrc
+echo "alias cat='bat'" >> ~/.bashrc
+
+# 4. Создание папки для обоев и скачивание крутого фона с логотипом Arch
+mkdir -p ~/Pictures/Wallpapers
+curl -L -o ~/Pictures/Wallpapers/arch.jpg https://githubusercontent.com
+
+# 5. Копирование дефолтного конфига AwesomeWM и добавление автозапуска обоев и прозрачности
+mkdir -p ~/.config/awesome
+cp /etc/xdg/awesome/rc.lua ~/.config/awesome/
+echo 'awful.spawn.with_shell("picom -b")' >> ~/.config/awesome/rc.lua
+echo 'awful.spawn.with_shell("feh --bg-scale ~/Pictures/Wallpapers/arch.jpg")' >> ~/.config/awesome/rc.lua
+
+# 6. Создание базового конфига для Alacritty, чтобы включить прозрачность окон
+mkdir -p ~/.config/alacritty
+cat <<EOF > ~/.config/alacritty/alacritty.toml
+[window]
+opacity = 0.85
+blur = true
+EOF
+
+# 7. Финальная перезагрузка системы
+sudo reboot
