@@ -103,7 +103,7 @@ swapon /dev/sda2 || error_exit "Oshibka vkljuchenija swap"
 # === 8. USTANOVKA SISTEMY ===
 echo "=== 8. Ustanovka bazovoj sistemy ==="
 echo "Eto zajmet neskol'ko minut. Pozhalujsta, podozhdite..."
-pacstrap -K /mnt base linux linux-firmware vim nano sudo iwd dhcpcd || error_exit "Oshibka pacstrap"
+pacstrap -K /mnt base linux linux-firmware btop fastfetch nano sudo iwd dhcpcd openssh || error_exit "Oshibka pacstrap"
 
 # === 9. GENERACIJA FSTAB ===
 echo "=== 9. Generacija fstab ==="
@@ -171,6 +171,7 @@ grub-mkconfig -o /boot/grub/grub.cfg
 echo "=== Vkljuchenie sluzhb ==="
 systemctl enable iwd
 systemctl enable dhcpcd
+systemctl enable sshd
 
 echo -e "\e[32m✅ Nastrojka v chroot zavershena\e[0m"
 INNERSCRIPT
