@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #  USTANOVKA ARCH LINUX (BIOS/MBR + SWAP + Wi-Fi)
-#  Versija: 4.1 (s transliteraciej)
+#  Versija: 4.3 (s podsvetkoj vvoda krasnym)
 #  Avtor: catDaVinchi
 #  GitHub: https://github.com/catDaVinchi/installScripts
 # ============================================================
@@ -11,24 +11,29 @@ set -e  # Ostanovka pri oshibke
 # ==================== FUNKCII ====================
 
 error_exit() {
-    echo "❌ OSHIBKA: $1"
+    echo -e "\e[31m❌ OSHIBKA: $1\e[0m"
     echo "Skript ostanovlen."
     exit 1
 }
 
 confirm() {
-    read -p "⚠️  $1 (y/N): " -n 1 -r
+    echo -e "\e[31m⚠️  $1 (y/N): \e[0m\c"
+    read -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         error_exit "Dejstvie otmeneno polzovatelem."
     fi
 }
 
+prompt_user() {
+    echo -e "\e[31m➡️  $1\e[0m"
+}
+
 # ==================== NACALO USTANOVKI ====================
 
 echo "============================================================"
 echo "  USTANOVKA ARCH LINUX"
-echo "  Versija skripta: 4.1"
+echo "  Versija skripta: 4.3"
 echo "============================================================"
 
 # === 1. Proverka interneta ===
@@ -42,9 +47,9 @@ echo "  - 2 GB (dlja OZU ≤ 4 GB)"
 echo "  - 4 GB (dlja OZU 4-8 GB)"
 echo "  - 8 GB (dlja OZU 8-16 GB)"
 echo "  - 16 GB (dlja hibernacii ili OZU > 16 GB)"
-read -p "Vvedite razmer SWAP v GB (naprimer, 4): " SWAP_SIZE_GB
+prompt_user "Vvedite razmer SWAP v GB (naprimer, 4): "
+read SWAP_SIZE_GB
 
-# Proverka, chto vvedeno chislo
 if ! [[ "$SWAP_SIZE_GB" =~ ^[0-9]+$ ]] || [ "$SWAP_SIZE_GB" -lt 1 ]; then
     error_exit "Nekorrektnyj razmer SWAP. Vvedite polozhitel'noe chislo."
 fi
@@ -66,7 +71,6 @@ reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorli
 echo "=== 5. Razmetka diska /dev/sda (MBR) ==="
 confirm "Budut UDALENY VSE DANNYE na diske /dev/sda. Prodolzhit'?"
 
-# Vychisljaem granicy razdelov
 BOOT_END=513
 SWAP_START=$BOOT_END
 SWAP_END=$((SWAP_START + SWAP_SIZE_MIB))
@@ -78,11 +82,9 @@ echo "  - swap: ${SWAP_START}-${SWAP_END} MiB (${SWAP_SIZE_GB} GB)"
 echo "  - root: ${ROOT_START}-100% MiB (ostal'noe)"
 
 parted /dev/sda mklabel msdos || error_exit "Ne udalos' sozdat' MBR-tablicu"
-
 parted /dev/sda mkpart primary ext4 1MiB ${BOOT_END}MiB || error_exit "Oshibka sozdanija boot-razdela"
 parted /dev/sda mkpart primary linux-swap ${SWAP_START}MiB ${SWAP_END}MiB || error_exit "Oshibka sozdanija swap-razdela"
 parted /dev/sda mkpart primary ext4 ${ROOT_START}MiB 100% || error_exit "Oshibka sozdanija root-razdela"
-
 parted /dev/sda set 1 boot on || error_exit "Oshibka ustanovki flaga boot"
 
 # === 6. FORMATIROVANIE ===
@@ -101,7 +103,7 @@ swapon /dev/sda2 || error_exit "Oshibka vkljuchenija swap"
 # === 8. USTANOVKA SISTEMY ===
 echo "=== 8. Ustanovka bazovoj sistemy ==="
 echo "Eto zajmet neskol'ko minut. Pozhalujsta, podozhdite..."
-pacstrap -K /mnt base linux linux-firmware nano sudo iwd dhcpcd btop mc fastfetch || error_exit "Oshibka pacstrap"
+pacstrap -K /mnt base linux linux-firmware vim nano sudo iwd dhcpcd || error_exit "Oshibka pacstrap"
 
 # === 9. GENERACIJA FSTAB ===
 echo "=== 9. Generacija fstab ==="
@@ -110,9 +112,13 @@ genfstab -U /mnt >> /mnt/etc/fstab || error_exit "Oshibka genfstab"
 # ==================== NASTROJKA V CHROOT ====================
 
 echo "=== 10. Nastrojka sistemy (chroot) ==="
-arch-chroot /mnt /bin/bash <<EOF || error_exit "Oshibka v chroot"
 
-# Chasovoj pojas (Moskva)
+# Kopiruem skript v chroot
+cat > /mnt/setup.sh <<'INNERSCRIPT'
+#!/bin/bash
+# Vnutrennij skript dlja vypolnenija v chroot
+
+# Chasovoj pojas
 ln -sf /usr/share/zoneinfo/Europe/Moscow /etc/localtime
 hwclock --systohc
 
@@ -132,24 +138,24 @@ cat > /etc/hosts <<HOSTS
 127.0.1.1   myarch.localdomain   myarch
 HOSTS
 
-# ========== VVOD PAROLEJ (s proverkoj) ==========
+# ========== VVOD PAROLEJ (s krasnoj podsvetkoj) ==========
 echo ""
 echo "============================================================"
-echo "⚠️  VNIMANIE: Sejchas nuzhno zadat' paroli!"
+echo -e "\e[31m⚠️  VNIMANIE: Sejchas nuzhno zadat' paroli!\e[0m"
 echo "============================================================"
 echo ""
 
-echo "➡️  Ustanovite parol' dlja ROOT (superpol'zovatel'):"
-passwd || { echo "Oshibka: parol' root ne zadan. Vyhod."; exit 1; }
-echo "✅ Parol' root zadan."
+echo -e "\e[31m➡️  Ustanovite parol' dlja ROOT:\e[0m"
+passwd
+echo -e "\e[32m✅ Parol' root zadan.\e[0m"
 echo ""
 
-echo "➡️  Sozdanie pol'zovatelja vgm..."
-useradd -m -G wheel -s /bin/bash vgm || { echo "Oshibka sozdanija pol'zovatelja vgm"; exit 1; }
+echo -e "\e[31m➡️  Sozdanie pol'zovatelja vgm...\e[0m"
+useradd -m -G wheel -s /bin/bash vgm
 
-echo "➡️  Ustanovite parol' dlja pol'zovatelja vgm:"
-passwd vgm || { echo "Oshibka: parol' dlja vgm ne zadan. Vyhod."; exit 1; }
-echo "✅ Parol' dlja vgm zadan."
+echo -e "\e[31m➡️  Ustanovite parol' dlja pol'zovatelja vgm:\e[0m"
+passwd vgm
+echo -e "\e[32m✅ Parol' dlja vgm zadan.\e[0m"
 echo ""
 
 # Sudo
@@ -157,17 +163,26 @@ echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers
 
 # ========== ZAGRUZCIK ==========
 echo "=== Ustanovka zagruzchika GRUB ==="
-pacman -S --noconfirm grub || { echo "Oshibka ustanovki GRUB"; exit 1; }
-grub-install --target=i386-pc /dev/sda || { echo "Oshibka ustanovki GRUB v MBR"; exit 1; }
-grub-mkconfig -o /boot/grub/grub.cfg || { echo "Oshibka sozdanija konfiga GRUB"; exit 1; }
+pacman -S --noconfirm grub
+grub-install --target=i386-pc /dev/sda
+grub-mkconfig -o /boot/grub/grub.cfg
 
 # ========== SLUZBY ==========
 echo "=== Vkljuchenie sluzhb ==="
-systemctl enable iwd || echo "⚠️  Ne udalos' vkljuchit' iwd"
-systemctl enable dhcpcd || echo "⚠️  Ne udalos' vkljuchit' dhcpcd"
+systemctl enable iwd
+systemctl enable dhcpcd
 
-echo "✅ Nastrojka v chroot zavershena"
-EOF
+echo -e "\e[32m✅ Nastrojka v chroot zavershena\e[0m"
+INNERSCRIPT
+
+# Delaem vnutrennij skript ispolnjaemym
+chmod +x /mnt/setup.sh
+
+# ZApuskaem ego v chroot s interaktivnym vvodom
+arch-chroot /mnt /bin/bash -c "./setup.sh" || error_exit "Oshibka vypolnenija nastrojki v chroot"
+
+# Udaljaem vremennyj skript
+rm -f /mnt/setup.sh
 
 # ==================== ZAVERSHENIE ====================
 
@@ -176,7 +191,7 @@ umount -R /mnt || error_exit "Oshibka razmontirovanija"
 swapoff /dev/sda2 || echo "⚠️  Swap uzhe otkljuchon"
 
 echo "============================================================"
-echo "✅ USTANOVKA USPESHNO ZAVERSHENA!"
+echo -e "\e[32m✅ USTANOVKA USPESHNO ZAVERSHENA!\e[0m"
 echo "============================================================"
 echo "📌 VAZHNO:"
 echo "   - Perezagruzites' komandoj: reboot"
