@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 #  USTANOVKA ARCH LINUX (BIOS/MBR + SWAP + Wi-Fi)
-#  Versija: 4.3 (s podsvetkoj vvoda krasnym)
+#  Versija: 5.0 (polnaja pererabotka)
 #  Avtor: catDaVinchi
 #  GitHub: https://github.com/catDaVinchi/installScripts
 # ============================================================
@@ -33,7 +33,7 @@ prompt_user() {
 
 echo "============================================================"
 echo "  USTANOVKA ARCH LINUX"
-echo "  Versija skripta: 4.3"
+echo "  Versija skripta: 5.0"
 echo "============================================================"
 
 # === 1. Proverka interneta ===
@@ -62,13 +62,34 @@ confirm "Prodolzhit' ustanovku s SWAP = ${SWAP_SIZE_GB} GB?"
 echo "=== 3. Sinhronizacija vremeni ==="
 timedatectl set-ntp true
 
-# === 4. OBNOVLENIE ZERKAL ===
+# === 4. OBNOVLENIE ZERKAL (s vyborom) ===
 echo "=== 4. Obnovlenie zerkal ==="
-pacman -Sy --noconfirm reflector || error_exit "Ne udalos' ustanovit' reflector"
-reflector --latest 20 --protocol https --sort rate --save /etc/pacman.d/mirrorlist || echo "⚠️  Reflector ne srabotal, no prodolzhaem..."
+echo "Bystrye zerkala uskorjajut zagruzku paketov, no ih poisk mozhet zanjat' do 30 sekund."
+confirm "Zapustit' poisk bystryh zerkal cherez reflector?"
 
-# === 5. RAZMETKA DISKA ===
-echo "=== 5. Razmetka diska /dev/sda (MBR) ==="
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    pacman -Sy --noconfirm reflector || echo "⚠️  Reflector ne ustanovlen, propuskaju..."
+    reflector --latest 10 --protocol https --sort rate --save /etc/pacman.d/mirrorlist && \
+        echo "✅ Zerkala obnovleny" || echo "⚠️  Reflector ne srabotal, ispol'zujutsja standartnye zerkala"
+else
+    echo "ℹ️  Poisk zerkal propushchen. Ispol'zujutsja standartnye."
+fi
+
+# === 5. IZJMENENIE IMENI POL'ZOVATELJA ===
+echo "=== 5. Sozdanie pol'zovatelja ==="
+prompt_user "Vvedite imja pol'zovatelja (naprimer, vgm): "
+read USER_NAME
+
+# Proverka, chto imja ne pustoje
+if [[ -z "$USER_NAME" ]]; then
+    error_exit "Imja pol'zovatelja ne mozhet byt' pustym."
+fi
+
+echo "✅ Pol'zovatel' budet sozdan: $USER_NAME"
+confirm "Prodolzhit' s imenem $USER_NAME?"
+
+# === 6. RAZMETKA DISKA ===
+echo "=== 6. Razmetka diska /dev/sda (MBR) ==="
 confirm "Budut UDALENY VSE DANNYE na diske /dev/sda. Prodolzhit'?"
 
 BOOT_END=513
@@ -87,31 +108,31 @@ parted /dev/sda mkpart primary linux-swap ${SWAP_START}MiB ${SWAP_END}MiB || err
 parted /dev/sda mkpart primary ext4 ${ROOT_START}MiB 100% || error_exit "Oshibka sozdanija root-razdela"
 parted /dev/sda set 1 boot on || error_exit "Oshibka ustanovki flaga boot"
 
-# === 6. FORMATIROVANIE ===
-echo "=== 6. Formatirovanie razdelov ==="
+# === 7. FORMATIROVANIE ===
+echo "=== 7. Formatirovanie razdelov ==="
 mkfs.ext4 /dev/sda1 || error_exit "Oshibka formatirovanija boot"
 mkswap /dev/sda2 || error_exit "Oshibka formatirovanija swap"
 mkfs.ext4 /dev/sda3 || error_exit "Oshibka formatirovanija root"
 
-# === 7. MONTIRovanie ===
-echo "=== 7. Montirovanie razdelov ==="
+# === 8. MONTIRovanie ===
+echo "=== 8. Montirovanie razdelov ==="
 mount /dev/sda3 /mnt || error_exit "Oshibka montirovanija root"
 mkdir -p /mnt/boot
 mount /dev/sda1 /mnt/boot || error_exit "Oshibka montirovanija boot"
 swapon /dev/sda2 || error_exit "Oshibka vkljuchenija swap"
 
-# === 8. USTANOVKA SISTEMY ===
-echo "=== 8. Ustanovka bazovoj sistemy ==="
+# === 9. USTANOVKA SISTEMY ===
+echo "=== 9. Ustanovka bazovoj sistemy ==="
 echo "Eto zajmet neskol'ko minut. Pozhalujsta, podozhdite..."
-pacstrap -K /mnt base linux linux-firmware btop fastfetch nano sudo iwd dhcpcd openssh || error_exit "Oshibka pacstrap"
+pacstrap -K /mnt base linux linux-firmware btop fastfetch nano sudo iwd dhcpcd openssh networkmanager || error_exit "Oshibka pacstrap"
 
-# === 9. GENERACIJA FSTAB ===
-echo "=== 9. Generacija fstab ==="
+# === 10. GENERACIJA FSTAB ===
+echo "=== 10. Generacija fstab ==="
 genfstab -U /mnt >> /mnt/etc/fstab || error_exit "Oshibka genfstab"
 
 # ==================== NASTROJKA V CHROOT ====================
 
-echo "=== 10. Nastrojka sistemy (chroot) ==="
+echo "=== 11. Nastrojka sistemy (chroot) ==="
 
 # Kopiruem skript v chroot
 cat > /mnt/setup.sh <<'INNERSCRIPT'
@@ -138,7 +159,7 @@ cat > /etc/hosts <<HOSTS
 127.0.1.1   myarch.localdomain   myarch
 HOSTS
 
-# ========== VVOD PAROLEJ (s krasnoj podsvetkoj) ==========
+# ========== VVOD PAROLEJ ==========
 echo ""
 echo "============================================================"
 echo -e "\e[31m⚠️  VNIMANIE: Sejchas nuzhno zadat' paroli!\e[0m"
@@ -150,12 +171,12 @@ passwd
 echo -e "\e[32m✅ Parol' root zadan.\e[0m"
 echo ""
 
-echo -e "\e[31m➡️  Sozdanie pol'zovatelja vgm...\e[0m"
-useradd -m -G wheel -s /bin/bash vgm
+echo -e "\e[31m➡️  Sozdanie pol'zovatelja $USER_NAME...\e[0m"
+useradd -m -G wheel -s /bin/bash $USER_NAME
 
-echo -e "\e[31m➡️  Ustanovite parol' dlja pol'zovatelja vgm:\e[0m"
-passwd vgm
-echo -e "\e[32m✅ Parol' dlja vgm zadan.\e[0m"
+echo -e "\e[31m➡️  Ustanovite parol' dlja pol'zovatelja $USER_NAME:\e[0m"
+passwd $USER_NAME
+echo -e "\e[32m✅ Parol' dlja $USER_NAME zadan.\e[0m"
 echo ""
 
 # Sudo
@@ -172,6 +193,7 @@ echo "=== Vkljuchenie sluzhb ==="
 systemctl enable iwd
 systemctl enable dhcpcd
 systemctl enable sshd
+systemctl enable NetworkManager
 
 echo -e "\e[32m✅ Nastrojka v chroot zavershena\e[0m"
 INNERSCRIPT
@@ -180,16 +202,27 @@ INNERSCRIPT
 chmod +x /mnt/setup.sh
 
 # ZApuskaem ego v chroot s interaktivnym vvodom
-arch-chroot /mnt /bin/bash -c "./setup.sh" || error_exit "Oshibka vypolnenija nastrojki v chroot"
+# Peredaem USER_NAME kak peremennuju okruzhenija
+arch-chroot /mnt /bin/bash -c "USER_NAME='$USER_NAME' ./setup.sh" || error_exit "Oshibka vypolnenija nastrojki v chroot"
 
 # Udaljaem vremennyj skript
 rm -f /mnt/setup.sh
 
-# ==================== ZAVERSHENIE ====================
+# ==================== ZAVERSHENIE I OCHISTKA ====================
 
-echo "=== 11. Ochistka i zavershenie ==="
+echo "=== 12. Ochistka i zavershenie ==="
+
+# 1. Razmontirovanie
 umount -R /mnt || error_exit "Oshibka razmontirovanija"
 swapoff /dev/sda2 || echo "⚠️  Swap uzhe otkljuchon"
+
+# 2. OCHISTKA (udaljaem vremennye fily v Live)
+echo "=== Ochistka vremennyh fajlov ==="
+rm -rf /var/cache/pacman/pkg/* || echo "⚠️  Ne udalos' ochistit' keshi"
+rm -f /root/installArch.sh || echo "⚠️  Skript ne najden v /root"
+rm -f /root/.bash_history || echo "⚠️  Istorija ne najdena"
+
+echo "✅ Vremennye fajly udaleny."
 
 echo "============================================================"
 echo -e "\e[32m✅ USTANOVKA USPESHNO ZAVERSHENA!\e[0m"
@@ -197,7 +230,7 @@ echo "============================================================"
 echo "📌 VAZHNO:"
 echo "   - Perezagruzites' komandoj: reboot"
 echo "   - Ne zabud'te izvlech' zagruzochnuju fleshku"
-echo "   - Vhod: vgm / vash_parol'"
+echo "   - Vhod: $USER_NAME / vash_parol'"
 echo "   - Root: root / vash_parol'"
 echo "============================================================"
 echo "🔧 Skript vypolnen. Udachnoj raboty s Arch Linux!"
