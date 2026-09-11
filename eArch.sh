@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  easyarch.sh — установщик Arch Linux
+#  eArch.sh — установщик Arch Linux
 #  Рефакторинг: исправлены критические баги, добавлен LUKS, Wayland для KDE,
 #  trap, логирование. Единый скрипт.
-#  Запуск: bash easyarch.sh (от root, на archiso)
+#  Запуск: bash eArch.sh (от root, на archiso)
 # ============================================================================
 
 set -euo pipefail
 
-LOG_FILE="/tmp/easyarch.log"
+LOG_FILE="/tmp/earch.log"
 UI_TITLE="eArch Установщик"
 KEEP_MOUNTS=""
 
